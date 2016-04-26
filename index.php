@@ -153,6 +153,10 @@ class MechanicPencil extends AutomaticPen {
     }
 }
 
+class MultiRodPen extends AutomaticPen {
+    
+}
+
 class PenBuilder {
     public $brand = "Bic";
     public $bodyColor = "yellow";
