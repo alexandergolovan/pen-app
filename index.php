@@ -30,6 +30,10 @@ class Rod
     public function useInk () {
         $this->volume = $this->volume > 0 ? --$this->volume : 0;
     }
+
+    public function getVolume () {
+        return $this->volume;
+    }
 }
 
 class Body
@@ -49,9 +53,12 @@ class Body
 }
 
 class Pen {
-    private $body;
-    private $brand;
-    private $rod;
+    public static $ERROR_PEN_CLOSE = 'Pen is closed!';
+
+    protected $body;
+    protected $brand;
+    protected $rod;
+    protected $isOpen = true;
 
     public function __construct (Body $body, Rod $rod, $brand) {
         $this->body = $body;
@@ -59,15 +66,28 @@ class Pen {
         $this->brand = $brand;
     }
 
+    public function isOpened() {
+        return true;
+    }
+
+    protected function writeCharacter ($symbol) {
+        echo chr(27) . $this->rod->getColor() . $symbol . chr(27) . "[0m";
+    }
+
     public function write ($text) {
         $textLength = strlen($text);
         for ($i = 0; $i < $textLength; $i++) {
             if (!$this->rod->isEmpty()) {
-                if ($text[$i] !== ' ') {
-                    echo chr(27) . $this->rod->getColor() . $text[$i] . chr(27) . "[0m";
-                    $this->rod->useInk();
+                if ($this->isOpened()) {
+                    if ($text[$i] !== ' ') {
+                        $this->rod->useInk();
+                        $this->writeCharacter($text[$i]);
+                    } else {
+                        echo ' ';
+                    }
                 } else {
-                    echo ' ';
+                    echo " ". self::$ERROR_PEN_CLOSE . "\n";
+                    break;
                 }
             } else {
                 echo " " . Rod::$ERROR_ROD_EMPTY . "\n" ;
@@ -78,26 +98,58 @@ class Pen {
 }
 
 class AutomaticPen extends Pen {
-    public static $ERROR_PEN_CLOSE = 'Automatic pen is closed!';
-
-    private $isOpen = false;
-
     public function __construct(Body $body, Rod $rod, $brand)
     {
         parent::__construct($body, $rod, $brand);
+        $this->isOpen = false;
     }
 
     public function click () {
         $this->isOpen = !$this->isOpen;
     }
 
-    public function write($text)
+    public function isOpened () {
+        return (bool)$this->isOpen;
+    }
+}
+
+class MechanicPencil extends AutomaticPen {
+    public static $ERROR_FULL_PUSHED = 'All rod is pushed out!!!';
+
+    const PUSH_OUT_LENGTH = 10;
+
+    private $openedVolume;
+
+    public function __construct(Body $body, Rod $rod, $brand)
     {
-        if ($this->isOpen) {
-            parent::write($text);
+        parent::__construct($body, $rod, $brand);
+    }
+
+    public function isOpened()
+    {
+        return $this->openedVolume > 0;
+    }
+
+    public function click () {
+        if (($this->rod->getVolume() - $this->openedVolume) !== 0) {
+            $this->isOpen = true;
+            $this->openedVolume += min ([
+                self::PUSH_OUT_LENGTH, ($this->rod->getVolume() - $this->openedVolume)
+                ]);
         } else {
-            echo " " . self::$ERROR_PEN_CLOSE . "\n";
+            echo " " . self::$ERROR_FULL_PUSHED . "\n";
         }
+    }
+
+    protected function writeCharacter($symbol) {
+        $this->openedVolume--;
+        if (!$this->openedVolume) {
+            $this->isOpen = false;
+        }
+
+        parent::writeCharacter($symbol);
+
+        return $this->isOpened();
     }
 }
 
@@ -119,15 +171,6 @@ class PenBuilder {
         return new Pen ($body, $rod, $this->brand);
     }
 
-    public function createBicPenRed() {
-        $this->rodColor = Rod::COLOR_RED;
-        $this->rodVolume = 500;
-        $this->bodyColor = 'orange';
-        $this->brand = 'Bic';
-
-        return $this->build();
-    }
-
     protected function createBody () {
         return new Body($this->bodyColor, $this->bodyMaterial);
     }
@@ -143,19 +186,67 @@ class AutomaticPenBuilder extends PenBuilder {
     }
 }
 
+class MechanicPencilBuilder extends AutomaticPenBuilder {
+    protected function createPen ($body, $rod) {
+        return new MechanicPencil ($body, $rod, $this->brand);
+    }
+}
 
+class PenFactory {
+    public function createBicPenRed() {
+        $penBuilder = new PenBuilder();
 
-$penBuilder = new PenBuilder();
-$bicPenRed = $penBuilder->createBicPenRed();
+        $penBuilder->rodColor = Rod::COLOR_RED;
+        $penBuilder->rodVolume = 500;
+        $penBuilder->bodyColor = 'orange';
+        $penBuilder->brand = 'Bic';
+
+        return $penBuilder->build();
+    }
+
+    public function createAutomaticBicPenRed() {
+        $automaticPenBuilder = new AutomaticPenBuilder();
+        $automaticPenBuilder->rodColor = Rod::COLOR_RED;
+        $automaticPenBuilder->rodVolume = 500;
+        $automaticPenBuilder->bodyColor = 'orange';
+        $automaticPenBuilder->brand = 'Bic';
+
+        return $automaticPenBuilder->build();
+    }
+
+    public function createSimpleMechanicPencil() {
+        $mechanicPencilBuilder = new MechanicPencilBuilder();
+        $mechanicPencilBuilder->rodColor = Rod::COLOR_GREY;
+        $mechanicPencilBuilder->rodVolume = 50;
+        $mechanicPencilBuilder->bodyColor = 'yellow';
+        $mechanicPencilBuilder->brand = 'Bic';
+
+        return $mechanicPencilBuilder->build();
+    }
+}
+
+$penFactory = new PenFactory();
+$bicPenRed = $penFactory->createBicPenRed();
 
 $bicPenRed->write('This is simple pen writing very well');
 
-$automaticPenBuilder = new AutomaticPenBuilder();
-$automaticBicPenRed = $automaticPenBuilder->createBicPenRed();
+$automaticBicPenRed = $penFactory->createAutomaticBicPenRed();
 
 $automaticBicPenRed->write('This is automatic is closed');
 $automaticBicPenRed->click();
 $automaticBicPenRed->write('This is automatic is opened');
+
+$simpleMechanicPencil = $penFactory->createSimpleMechanicPencil();
+$simpleMechanicPencil->write("Mechanic pencil doesn't write");
+$simpleMechanicPencil->click();
+$simpleMechanicPencil->write("Mechanic pencil writes not long massages");
+
+$simpleMechanicPencil->click();
+$simpleMechanicPencil->click();
+$simpleMechanicPencil->click();
+$simpleMechanicPencil->click();
+$simpleMechanicPencil->click();
+$simpleMechanicPencil->write("Mechanic pencil writes long message");
 
 
 
