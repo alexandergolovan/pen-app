@@ -158,11 +158,11 @@ class MultiRodPen extends AutomaticPen {
 }
 
 class PenBuilder {
-    public $brand = "Bic";
-    public $bodyColor = "yellow";
-    public $rodColor = Rod::COLOR_BLUE;
-    public $rodVolume = 1000;
-    public $bodyMaterial = 'plastic';
+    public $brand           = "Bic";
+    public $bodyColor       = "yellow";
+    public $rodColor        = Rod::COLOR_BLUE;
+    public $rodVolume       = 1000;
+    public $bodyMaterial    = "plastic";
 
     public function build () {
         $rod = $this->createRod();
